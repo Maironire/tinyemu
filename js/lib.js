@@ -28,20 +28,20 @@ mergeInto(LibraryManager.library, {
         /* Note: we really send byte values. It would be up to the
          * terminal to support UTF-8 */
         str = String.fromCharCode.apply(String, HEAPU8.subarray(buf, buf + len));
-        term.write(str);
+        Module.term.write(str);
     },
 
     console_get_size: function(pw, ph)
     {
         var w, h, r;
-        r = term.getSize();
+        r = Module.term.getSize();
         HEAPU32[pw >> 2] = r[0];
         HEAPU32[ph >> 2] = r[1];
     },
 
     fs_export_file: function(filename, buf, buf_len)
     {
-        var _filename = Pointer_stringify(filename);
+        var _filename = UTF8ToString(filename);
 //        console.log("exporting " + _filename);
         var data = HEAPU8.subarray(buf, buf + buf_len);
         var file = new Blob([data], { type: "application/octet-stream" });
@@ -59,19 +59,27 @@ mergeInto(LibraryManager.library, {
     },
 
     emscripten_async_wget3_data: function(url, request, user, password, post_data, post_data_len, arg, free, onload, onerror, onprogress) {
-    var _url = Pointer_stringify(url);
-    var _request = Pointer_stringify(request);
+    var _url = UTF8ToString(url);
+    var _request = UTF8ToString(request);
     var _user;
     var _password;
+
+    Browser.wgetRequests = {}
+    Browser.nextWgetRequestHandle = 0,
+    Browser.getNextWgetRequestHandle = function() {
+        var handle = Browser.nextWgetRequestHandle;
+        Browser.nextWgetRequestHandle++;
+        return handle
+    }
 
       var http = new XMLHttpRequest();
 
       if (user)
-          _user = Pointer_stringify(user);
+          _user = UTF8ToString(user);
       else
           _user = null;
       if (password)
-          _password = Pointer_stringify(password);
+          _password = UTF8ToString(password);
       else
           _password = null;
         
@@ -89,10 +97,10 @@ mergeInto(LibraryManager.library, {
         var byteArray = new Uint8Array(http.response);
         var buffer = _malloc(byteArray.length);
         HEAPU8.set(byteArray, buffer);
-        if (onload) Runtime.dynCall('viiii', onload, [handle, arg, buffer, byteArray.length]);
+        if (onload) dynCall('viiii', onload, [handle, arg, buffer, byteArray.length]);
         if (free) _free(buffer);
       } else {
-        if (onerror) Runtime.dynCall('viiii', onerror, [handle, arg, http.status, http.statusText]);
+        if (onerror) dynCall('viiii', onerror, [handle, arg, http.status, http.statusText]);
       }
       delete Browser.wgetRequests[handle];
     };
@@ -100,14 +108,14 @@ mergeInto(LibraryManager.library, {
     // ERROR
     http.onerror = function http_onerror(e) {
       if (onerror) {
-        Runtime.dynCall('viiii', onerror, [handle, arg, http.status, http.statusText]);
+        dynCall('viiii', onerror, [handle, arg, http.status, http.statusText]);
       }
       delete Browser.wgetRequests[handle];
     };
 
     // PROGRESS
     http.onprogress = function http_onprogress(e) {
-      if (onprogress) Runtime.dynCall('viiii', onprogress, [handle, arg, e.loaded, e.lengthComputable || e.lengthComputable === undefined ? e.total : 0]);
+      if (onprogress) dynCall('viiii', onprogress, [handle, arg, e.loaded, e.lengthComputable || e.lengthComputable === undefined ? e.total : 0]);
     };
 
     // ABORT
@@ -139,7 +147,7 @@ mergeInto(LibraryManager.library, {
 
   fs_wget_update_downloading: function (flag)
   {
-      update_downloading(Boolean(flag));
+    //   update_downloading(Boolean(flag));
   },
     
   fb_refresh: function(opaque, data, x, y, w, h, stride)
@@ -172,8 +180,8 @@ mergeInto(LibraryManager.library, {
 
   net_recv_packet: function(bs, buf, buf_len)
   {
-      if (net_state) {
-          net_state.recv_packet(HEAPU8.subarray(buf, buf + buf_len));
+      if (Module.net_state) {
+          Module.net_state.recv_packet(HEAPU8.subarray(buf, buf + buf_len));
       }
   },
 
